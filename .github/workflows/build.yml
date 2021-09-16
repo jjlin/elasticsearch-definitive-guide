@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '25 9 * * Sun'
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install asciidoc-base calibre gettext-base
+
+      - name: Check out repo
+        uses: actions/checkout@v2
+
+      - name: Check out `github.com/elastic/elasticsearch-definitive-guide`
+        uses: actions/checkout@v2
+        with:
+          repository: elastic/elasticsearch-definitive-guide
+          path: edg
+
+      - name: Build EPUB version
+        run: |
+          # The output file has the same basename as the input file (book.asciidoc).
+          a2x --doctype=book --format=epub --destination-dir=. --verbose \
+          ./edg/book.asciidoc
+
+      - name: Build Mobi version
+        run: ebook-convert book.epub book.mobi
+
+      - name: Prepare for deployment to GitHub Pages
+        id: prepare-deploy
+        run: |
+          COMMIT=$(cd edg && git rev-parse --short=8 HEAD)
+          echo "::set-output name=commit::${COMMIT}"
+          export EPUB_FILE=elasticsearch-definitive-guide-${COMMIT}.epub
+          export MOBI_FILE=elasticsearch-definitive-guide-${COMMIT}.mobi
+          mv book.epub gh-pages/${EPUB_FILE}
+          mv book.mobi gh-pages/${MOBI_FILE}
+          cd gh-pages
+          envsubst '${EPUB_FILE} ${MOBI_FILE}' < index.template.html > index.html
+          rm index.template.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages
+          user_name: ${{ github.actor }}
+          user_email: ${{ github.actor }}@users.noreply.github.com
+          commit_message: Deploy github.com/elastic/elasticsearch-definitive-guide@${{ steps.prepare-deploy.outputs.commit }}
+          force_orphan: true
