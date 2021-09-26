@@ -1,9 +1,11 @@
 name: build
 
 on:
+  # The upstream repo is officially no longer maintained, so there's no longer
+  # any need to build new versions of these docs.
+  # schedule:
+  #   - cron: '25 9 * * Sun'
   workflow_dispatch:
-  schedule:
-    - cron: '25 9 * * Sun'
 
 jobs:
   build:
